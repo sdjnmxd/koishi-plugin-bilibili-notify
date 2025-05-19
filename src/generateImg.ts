@@ -99,12 +99,12 @@ class GenerateImg extends Service {
                         box-sizing: border-box;
                         font-family: \"${this.giConfig.font}\", "Custom Font", "Microsoft YaHei", "Source Han Sans", "Noto Sans CJK", sans-serif;
                     }
-        
+
                     html {
                         width: 800px;
                         height: auto;
                     }
-        
+
                     .background {
                         width: 100%;
                         height: auto;
@@ -112,7 +112,7 @@ class GenerateImg extends Service {
                         background: linear-gradient(to right bottom, ${cardColorStart}, ${cardColorEnd});
                         overflow: hidden;
                     }
-        
+
                     .base-plate {
                         width: 100%;
                         height: auto;
@@ -541,7 +541,16 @@ class GenerateImg extends Service {
                                     ${archive.title}
                                 </div>
                                 <div class="video-introduction">
-                                    ${archive.desc}
+                                    ${archive.desc ?
+                                        `<div class="video-content-block">
+                                            <div class="content-text">${archive.desc}</div>
+                                        </div>`
+                                        : ""}
+                                    ${dynamicMajorData.modules.module_dynamic.desc?.text ?
+                                        `<div class="video-content-block${!archive.desc ? ' no-margin' : ''}">
+                                            <div class="content-text">${dynamicMajorData.modules.module_dynamic.desc.text.replace(/\n/g, '<br>')}</div>
+                                        </div>`
+                                        : ""}
                                 </div>
                             </div>
                             <div class="video-stat">
@@ -640,7 +649,7 @@ class GenerateImg extends Service {
                 font-family: "Custom Font";
                 src: url(${fontURL});
             }
-    
+
             * {
                 margin: 0;
                 padding: 0;
@@ -678,12 +687,12 @@ class GenerateImg extends Service {
                 overflow: hidden;
                 background-color: #fff;
             }
-    
+
             .card-body {
                 display: flex;
                 padding: 15px;
             }
-    
+
             .card .anchor-avatar {
                 max-width: 70px;
                 /* 设置最大宽度为容器宽度的100% */
@@ -692,33 +701,33 @@ class GenerateImg extends Service {
                 margin-right: 20px;
                 border-radius: 10px;
             }
-    
+
             .card .card-body .card-content {
                 width: 100%;
             }
-    
+
             .card .card-body .card-content .card-header {
                 width: 100%;
                 display: flex;
                 justify-content: space-between;
             }
-    
+
             .card .up-info {
                 display: flex;
                 flex-direction: column;
                 justify-content: space-between;
                 height: 70px;
             }
-    
+
             .card .up-info .up-name {
                 font-size: 27px;
             }
-    
+
             .card .pub-time {
                 font-size: 20px;
                 color: grey;
             }
-    
+
             .card .card-header img {
                 height: 50px;
             }
@@ -750,20 +759,20 @@ class GenerateImg extends Service {
                 color: #008AC5;
                 gap: 3px;
             }
-    
+
             .card .card-details {
                 margin-top: 5px;
                 margin-bottom: 15px;
                 font-size: 22px;
                 width: 90%;
             }
-    
+
             .card .card-major {
                 display: flex;
                 flex-wrap: wrap;
                 gap: 5px;
             }
-    
+
             .card .card-major .photo-item {
                 border-radius: 10px;
                 overflow: hidden;
@@ -823,7 +832,7 @@ class GenerateImg extends Service {
                 overflow: hidden;
                 flex-basis: 20%; /* or any value less than 50% */
             }
-    
+
             .card .card-stat {
                 display: flex;
                 justify-content: space-between;
@@ -832,7 +841,7 @@ class GenerateImg extends Service {
                 color: gray;
                 font-size: 14px;
             }
-    
+
             .card .card-stat .stat-item {
                 display: flex;
                 align-items: center;
@@ -846,13 +855,13 @@ class GenerateImg extends Service {
                 margin-top: 10px;
                 height: 147px;
             }
-    
+
             .card .video-cover {
                 position: relative;
                 flex: 2;
                 overflow: hidden;
             }
-    
+
             .card .video-cover img {
                 width: 236px;
             }
@@ -865,7 +874,7 @@ class GenerateImg extends Service {
                 left: 0;
                 background: linear-gradient(to top, rgba(0, 0, 0, 0.5) 0%, transparent 30%);
             }
-    
+
             .card .video-cover span {
                 position: absolute;
                 color: #fff;
@@ -873,7 +882,7 @@ class GenerateImg extends Service {
                 right: 10px;
                 bottom: 8px;
             }
-    
+
             .card .video-info {
                 display: flex;
                 justify-content: space-between;
@@ -885,11 +894,11 @@ class GenerateImg extends Service {
                 padding: 12px 16px 10px;
                 background-color: #fff;
             }
-    
+
             .card .video-info-header .video-title {
                 font-size: 16px;
             }
-    
+
             .card .video-info-header .video-introduction {
                 margin-top: 5px;
                 font-size: 12px;
@@ -903,14 +912,64 @@ class GenerateImg extends Service {
                 overflow: hidden;
                 /* 必须设置为 hidden */
             }
-    
+
+            .card .video-info-header .video-content-block {
+                display: flex;
+                flex-direction: column;
+                margin-top: 8px;
+                padding-top: 8px;
+                border-top: 1px solid #EEE;
+            }
+
+            .card .video-info-header .no-margin {
+                margin-top: 0;
+                padding-top: 0;
+                border-top: none;
+            }
+
+            .card .video-info-header .content-type {
+                font-size: 12px;
+                font-weight: bold;
+                color: #6699CC;
+                margin-bottom: 3px;
+            }
+
+            .card .video-info-header .content-text {
+                font-size: 12px;
+                line-height: 1.5;
+                color: #666;
+            }
+
+            .card .video-info-header .video-desc {
+                line-height: 1.5;
+                margin-bottom: 4px;
+            }
+
+            .card .video-info-header .video-dynamic-text {
+                margin-top: 6px;
+                color: #99A;
+                line-height: 1.5;
+            }
+
+            .card .video-info-header .content-divider {
+                height: 1px;
+                background-color: #EEE;
+                margin: 4px 0;
+                width: 100%;
+            }
+
+            .card .video-info-header .up-says {
+                color: #6699CC;
+                font-weight: bold;
+            }
+
             .card .video-stat {
                 font-size: 12px;
                 color: #AAA;
                 display: flex;
                 gap: 35px
             }
-    
+
             .card .video-stat .video-stat-item {
                 display: flex;
                 align-items: center;
@@ -922,20 +981,20 @@ class GenerateImg extends Service {
                 padding: 12px 10px 14px 10px;
                 background-color: #F6F7F8;
             }
-    
+
             .card-forward .forward-userinfo {
                 display: flex;
                 align-items: center;
                 gap: 5px;
                 height: 35px;
             }
-    
+
             .forward-userinfo img {
                 width: 25px;
                 height: 25px;
                 border-radius: 50%;
             }
-    
+
             .forward-userinfo span {
                 color: #61666D;
                 font-size: 20px;
@@ -950,22 +1009,22 @@ class GenerateImg extends Service {
                 border-radius: 10px;
                 background-color: #F6F7F8;
             }
-    
+
             .card-reserve .reserve-title {
                 font-size: 14px;
                 color: #18191C;
             }
-    
+
             .card-reserve .reserve-desc {
                 margin-top: 7px;
                 font-size: 12px;
                 color: #9499A0;
             }
-    
+
             .reserve-info .reserve-time {
                 margin-right: 7px;
             }
-    
+
             .card-reserve .reserve-prize {
                 display: flex;
                 align-items: center;
@@ -973,7 +1032,7 @@ class GenerateImg extends Service {
                 gap: 3px;
                 color: #00AEEC;
             }
-    
+
             .card .card-reserve .reserve-button button {
                 border: none;
                 height: 30px;
@@ -981,7 +1040,7 @@ class GenerateImg extends Service {
                 font-size: 13px;
                 border-radius: 7px;
             }
-    
+
             .card .card-reserve .reserve-button .reserve-button-end {
                 display: flex;
                 align-items: center;
@@ -989,7 +1048,7 @@ class GenerateImg extends Service {
                 color: #9499A0;
                 background-color: #E3E5E7;
             }
-    
+
             .card .card-reserve .reserve-button .reserve-button-ing {
                 display: flex;
                 align-items: center;
@@ -1004,19 +1063,19 @@ class GenerateImg extends Service {
                 font-family: "Custom Font";
                 src: url(${fontURL});
             }
-    
+
             * {
                 margin: 0;
                 padding: 0;
                 box-sizing: border-box;
                 font-family: \"${this.giConfig.font}\", "Custom Font", "Microsoft YaHei", "Source Han Sans", "Noto Sans CJK", sans-serif;
             }
-    
+
             html {
                 width: 800px;
                 height: auto;
             }
-    
+
             .background {
                 width: 100%;
                 height: auto;
@@ -1033,7 +1092,7 @@ class GenerateImg extends Service {
                 border-radius: 10px;
                 background-color: ${cardBasePlateColor};
             }
-    
+
             .card {
                 width: 100%;
                 height: auto;
@@ -1042,12 +1101,12 @@ class GenerateImg extends Service {
                 overflow: hidden;
                 background-color: #fff;
             }
-    
+
             .card-body {
                 display: flex;
                 padding: 15px;
             }
-    
+
             .card .anchor-avatar {
                 border-radius: 5px 5px 0 0;
                 max-width: 50px;
@@ -1057,33 +1116,33 @@ class GenerateImg extends Service {
                 margin-right: 20px;
                 border-radius: 10px;
             }
-    
+
             .card .card-body .card-content {
                 width: 100%;
             }
-    
+
             .card .card-body .card-content .card-header {
                 width: 100%;
                 display: flex;
                 justify-content: space-between;
             }
-    
+
             .card .up-info {
                 display: flex;
                 flex-direction: column;
                 justify-content: space-between;
                 height: 50px;
             }
-    
+
             .card .up-info .up-name {
                 font-size: 20px;
             }
-    
+
             .card .pub-time {
                 font-size: 12px;
                 color: grey;
             }
-    
+
             .card .card-header img {
                 height: 50px;
             }
@@ -1117,18 +1176,18 @@ class GenerateImg extends Service {
                 color: #008AC5;
                 gap: 3px;
             }
-    
+
             .card .card-details {
                 margin-bottom: 15px;
                 width: 90%;
             }
-    
+
             .card .card-major {
                 display: flex;
                 flex-wrap: wrap;
                 gap: 5px;
             }
-    
+
             .card .card-major .photo-item {
                 border-radius: 10px;
                 overflow: hidden;
@@ -1188,7 +1247,7 @@ class GenerateImg extends Service {
                 overflow: hidden;
                 flex-basis: 20%; /* or any value less than 50% */
             }
-    
+
             .card .card-stat {
                 display: flex;
                 justify-content: space-between;
@@ -1197,7 +1256,7 @@ class GenerateImg extends Service {
                 color: gray;
                 font-size: 14px;
             }
-    
+
             .card .card-stat .stat-item {
                 display: flex;
                 align-items: center;
@@ -1211,13 +1270,13 @@ class GenerateImg extends Service {
                 margin-top: 10px;
                 height: 132px;
             }
-    
+
             .card .video-cover {
                 position: relative;
                 flex: 2;
                 overflow: hidden;
             }
-    
+
             .card .video-cover img {
                 width: 236px;
             }
@@ -1230,7 +1289,7 @@ class GenerateImg extends Service {
                 left: 0;
                 background: linear-gradient(to top, rgba(0, 0, 0, 0.5) 0%, transparent 30%);
             }
-    
+
             .card .video-cover span {
                 position: absolute;
                 color: #fff;
@@ -1238,7 +1297,7 @@ class GenerateImg extends Service {
                 right: 10px;
                 bottom: 8px;
             }
-    
+
             .card .video-info {
                 display: flex;
                 justify-content: space-between;
@@ -1250,11 +1309,11 @@ class GenerateImg extends Service {
                 padding: 12px 16px 10px;
                 background-color: #fff;
             }
-    
+
             .card .video-info-header .video-title {
                 font-size: 16px;
             }
-    
+
             .card .video-info-header .video-introduction {
                 margin-top: 5px;
                 font-size: 12px;
@@ -1268,14 +1327,23 @@ class GenerateImg extends Service {
                 overflow: hidden;
                 /* 必须设置为 hidden */
             }
-    
+
+            .card .video-info-header .video-dynamic-text {
+                margin-top: 6px;
+                color: #99A;
+            }
+
+            .card .video-info-header .up-says {
+                color: #6699CC;
+                font-weight: bold;
+            }
             .card .video-stat {
                 font-size: 12px;
                 color: #AAA;
                 display: flex;
                 gap: 35px
             }
-    
+
             .card .video-stat .video-stat-item {
                 display: flex;
                 align-items: center;
@@ -1287,20 +1355,20 @@ class GenerateImg extends Service {
                 padding: 12px 10px 14px 10px;
                 background-color: #F6F7F8;
             }
-    
+
             .card-forward .forward-userinfo {
                 display: flex;
                 align-items: center;
                 gap: 5px;
                 height: 30px;
             }
-    
+
             .forward-userinfo img {
                 width: 20px;
                 height: 20px;
                 border-radius: 50%;
             }
-    
+
             .forward-userinfo span {
                 color: #61666D;
                 font-size: 15px;
@@ -1315,22 +1383,22 @@ class GenerateImg extends Service {
                 border-radius: 10px;
                 background-color: #F6F7F8;
             }
-    
+
             .card-reserve .reserve-title {
                 font-size: 14px;
                 color: #18191C;
             }
-    
+
             .card-reserve .reserve-desc {
                 margin-top: 7px;
                 font-size: 12px;
                 color: #9499A0;
             }
-    
+
             .reserve-info .reserve-time {
                 margin-right: 7px;
             }
-    
+
             .card-reserve .reserve-prize {
                 display: flex;
                 align-items: center;
@@ -1338,7 +1406,7 @@ class GenerateImg extends Service {
                 gap: 3px;
                 color: #00AEEC;
             }
-    
+
             .card .card-reserve .reserve-button button {
                 border: none;
                 height: 30px;
@@ -1346,7 +1414,7 @@ class GenerateImg extends Service {
                 font-size: 13px;
                 border-radius: 7px;
             }
-    
+
             .card .card-reserve .reserve-button .reserve-button-end {
                 display: flex;
                 align-items: center;
@@ -1354,7 +1422,7 @@ class GenerateImg extends Service {
                 color: #9499A0;
                 background-color: #E3E5E7;
             }
-    
+
             .card .card-reserve .reserve-button .reserve-button-ing {
                 display: flex;
                 align-items: center;
