@@ -7,6 +7,8 @@ import * as Database from "./database";
 import GenerateImg from "./generateImg";
 import BiliAPI from "./biliAPI";
 import BLive from "./blive";
+import { Config } from './core/types'
+import { ServerManager } from './core/server'
 
 export const inject = ["puppeteer", "database", "notifier"];
 
@@ -188,8 +190,8 @@ export function apply(ctx: Context, config: Config) {
 	// load database
 	ctx.plugin(Database);
 	// Register ServerManager
-	ctx.plugin(ServerManager);
-	// 当用户输入“恶魔兔，启动！”时，执行 help 指令
+	ctx.plugin(ServerManager, config);
+	// 当用户输入"恶魔兔，启动！"时，执行 help 指令
 	ctx.middleware((session, next) => {
 		if (session.content === "恶魔兔，启动！") {
 			return session.send("启动不了一点");
