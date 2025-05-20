@@ -551,9 +551,9 @@ class GenerateImg extends Service {
                                             <div class="content-text">${archive.desc}</div>
                                         </div>`
                                         : ""}
-                                    ${dynamicMajorData.modules.module_dynamic.desc?.text ?
+                                    ${dynamic.modules.module_dynamic?.desc?.text ?
                                         `<div class="video-content-block${!archive.desc ? ' no-margin' : ''}">
-                                            <div class="content-text">${dynamicMajorData.modules.module_dynamic.desc.text.replace(/\n/g, '<br>')}</div>
+                                            <div class="content-text">${dynamic.modules.module_dynamic.desc.text.replace(/\n/g, '<br>')}</div>
                                         </div>`
                                         : ""}
                                 </div>

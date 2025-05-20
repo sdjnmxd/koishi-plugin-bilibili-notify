@@ -107,7 +107,9 @@ export type Dynamic = {
 		module_dynamic: {
 			// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 			additional: any;
-			desc: null;
+			desc: {
+				text: string;
+			} | null;
 			major: {
 				opus: {
 					fold_action: Array<string>;
