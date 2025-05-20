@@ -35,10 +35,13 @@
     "luxon": "^3.5.0",
     "md5": "^2.3.0",
     "qrcode": "^1.5.4",
-    "tough-cookie": "^4.1.4"
+    "tough-cookie": "^4.1.4",
+    "typescript": "^5.8.3"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
+    "@koishijs/plugin-help": "^2.4.5",
+    "@koishijs/plugin-notifier": "^1.2.1",
     "@types/luxon": "^3.4.2",
     "@types/md5": "^2.3.5",
     "@types/qrcode": "^1.5.5",
