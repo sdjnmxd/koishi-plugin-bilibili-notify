@@ -174,29 +174,13 @@ export function apply(ctx: Context, config: Config) {
 	globalConfig = config;
 	// 设置提示
 	ctx.notifier.create({
-		type: "danger",
-		content:
-			"从3.1.0-alpha.0及以前版本升级到3.1.0-alpha.1及以后版本必定报错，请重新填写订阅配置中sub.target.channelArr的内容",
+		type: "success",
+		content: "魔改版本",
 	});
-	ctx.notifier.create({
-		type: "warning",
-		content:
-			"请使用Auth插件创建超级管理员账号，没有权限将无法使用该插件提供的指令",
-	});
-	ctx.logger.warn(
-		"从3.1.0-alpha.0及以前版本升级到3.1.0-alpha.1版本必定报错，请重新填写订阅配置中sub.target.channelArr的内容",
-	);
 	// load database
 	ctx.plugin(Database);
 	// Register ServerManager
 	ctx.plugin(ServerManager);
-	// 当用户输入“恶魔兔，启动！”时，执行 help 指令
-	ctx.middleware((session, next) => {
-		if (session.content === "恶魔兔，启动！") {
-			return session.send("启动不了一点");
-		}
-		return next();
-	});
 }
 
 export interface Config {
