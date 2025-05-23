@@ -11,6 +11,13 @@
     "lib",
     "dist"
   ],
+  "scripts": {
+    "build": "node build.js",
+    "copy-assets": "node -e \"require('./build.js').copyAssets()\"",
+    "clean": "node -e \"require('./build.js').clean()\"",
+    "compile": "tsc",
+    "dev": "tsc --watch"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
