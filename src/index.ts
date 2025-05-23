@@ -89,7 +89,7 @@ class ServerManager extends Service {
 
 			// GI = GenerateImg
 			const gi = this.ctx.plugin(GenerateImg, {
-				filter: globalConfig.filter,
+				dynamicFilter: globalConfig.dynamicFilter,
 				removeBorder: globalConfig.removeBorder,
 				cardColorStart: globalConfig.cardColorStart,
 				cardColorEnd: globalConfig.cardColorEnd,
@@ -112,7 +112,8 @@ class ServerManager extends Service {
 				customLive: globalConfig.customLive,
 				customLiveEnd: globalConfig.customLiveEnd,
 				dynamicUrl: globalConfig.dynamicUrl,
-				filter: globalConfig.filter,
+				dynamicFilter: globalConfig.dynamicFilter,
+				liveFilter: globalConfig.liveFilter,
 				dynamicDebugMode: globalConfig.dynamicDebugMode,
 			});
 
@@ -250,7 +251,9 @@ export interface Config {
 	enableLargeFont: boolean;
 	font: string;
 	// biome-ignore lint/complexity/noBannedTypes: <explanation>
-	filter: {};
+	dynamicFilter: {};
+	// biome-ignore lint/complexity/noBannedTypes: <explanation>
+	liveFilter: {};
 	// biome-ignore lint/complexity/noBannedTypes: <explanation>
 	debug: {};
 	dynamicDebugMode: boolean;
@@ -485,12 +488,12 @@ export const Config: Schema<Config> = Schema.object({
 		"推送卡片的字体样式，如果你想用你自己的字体可以在此填写，例如：Microsoft YaHei",
 	),
 
-	filter: Schema.intersect([
+	dynamicFilter: Schema.intersect([
 		Schema.object({
 			enable: Schema.boolean()
 				.default(false)
 				.description("是否开启动态屏蔽功能"),
-		}).description("屏蔽设置"),
+		}).description("动态屏蔽设置"),
 		Schema.union([
 			Schema.object({
 				enable: Schema.const(true).required().experimental(),
@@ -505,6 +508,27 @@ export const Config: Schema<Config> = Schema.object({
 					.default(false)
 					.description("是否屏蔽转发动态"),
 				article: Schema.boolean().default(false).description("是否屏蔽专栏"),
+			}),
+			Schema.object({}),
+		]),
+	]),
+
+	liveFilter: Schema.intersect([
+		Schema.object({
+			enable: Schema.boolean()
+				.default(false)
+				.description("是否开启直播屏蔽功能"),
+		}).description("直播屏蔽设置"),
+		Schema.union([
+			Schema.object({
+				enable: Schema.const(true).required(),
+				notify: Schema.boolean()
+					.default(false)
+					.description("直播被屏蔽是否发送提示"),
+				regex: Schema.string().description("正则表达式屏蔽直播标题"),
+				keywords: Schema.array(String).description(
+					"关键字屏蔽直播标题，一个关键字为一项",
+				),
 			}),
 			Schema.object({}),
 		]),

@@ -1896,17 +1896,17 @@ namespace ComRegister {
 		customLiveEnd: Schema.string().required(),
 		dynamicUrl: Schema.boolean().required(),
 		dynamicFilter: Schema.object({
-			enable: Schema.boolean().description("是否启用动态标题过滤"),
+			enable: Schema.boolean().description("是否启用动态屏蔽"),
 			notify: Schema.boolean().description("屏蔽时是否发送通知"),
-			regex: Schema.string().description("正则表达式过滤规则"),
-			keywords: Schema.array(String).description("关键词过滤列表"),
-		}).description("动态标题过滤设置，当动态标题包含指定关键词时不推送动态信息"),
+			regex: Schema.string().description("正则表达式屏蔽规则"),
+			keywords: Schema.array(String).description("关键词屏蔽列表"),
+		}).description("动态屏蔽设置，当动态标题包含指定关键词时不推送动态信息"),
 		liveFilter: Schema.object({
-			enable: Schema.boolean().description("是否启用直播标题过滤"),
+			enable: Schema.boolean().description("是否启用直播屏蔽"),
 			notify: Schema.boolean().description("屏蔽时是否发送通知"),
-			regex: Schema.string().description("正则表达式过滤规则"),
-			keywords: Schema.array(String).description("关键词过滤列表"),
-		}).description("直播标题过滤设置，当直播标题包含指定关键词时不推送直播通知"),
+			regex: Schema.string().description("正则表达式屏蔽规则"),
+			keywords: Schema.array(String).description("关键词屏蔽列表"),
+		}).description("直播屏蔽设置，当直播标题包含指定关键词时不推送直播通知"),
 		dynamicDebugMode: Schema.boolean().required(),
 	});
 }
