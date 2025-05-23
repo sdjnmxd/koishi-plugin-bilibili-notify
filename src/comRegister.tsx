@@ -705,7 +705,7 @@ class ComRegister {
 							if (e.message === "直播开播动态，不做处理") return;
 							if (e.message === "出现关键词，屏蔽该动态") {
 								// 如果需要发送才发送
-								if (this.config.filter.notify) {
+								if (this.config.dynamicFilter.notify) {
 									await this.broadcastToTargets(
 										sub.target,
 										`${name}发布了一条含有屏蔽关键字的动态`,
@@ -715,7 +715,7 @@ class ComRegister {
 								return;
 							}
 							if (e.message === "已屏蔽转发动态") {
-								if (this.config.filter.notify) {
+								if (this.config.dynamicFilter.notify) {
 									await this.broadcastToTargets(
 										sub.target,
 										`${name}转发了一条动态，已屏蔽`,
@@ -725,7 +725,7 @@ class ComRegister {
 								return;
 							}
 							if (e.message === "已屏蔽专栏动态") {
-								if (this.config.filter.notify) {
+								if (this.config.dynamicFilter.notify) {
 									await this.broadcastToTargets(
 										sub.target,
 										`${name}投稿了一条专栏，已屏蔽`,
@@ -930,7 +930,7 @@ class ComRegister {
 							if (e.message === "直播开播动态，不做处理") return;
 							if (e.message === "出现关键词，屏蔽该动态") {
 								// 如果需要发送才发送
-								if (this.config.filter.notify) {
+								if (this.config.dynamicFilter.notify) {
 									await this.broadcastToTargets(
 										sub.target,
 										`${name}发布了一条含有屏蔽关键字的动态`,
@@ -940,7 +940,7 @@ class ComRegister {
 								return;
 							}
 							if (e.message === "已屏蔽转发动态") {
-								if (this.config.filter.notify) {
+								if (this.config.dynamicFilter.notify) {
 									await this.broadcastToTargets(
 										sub.target,
 										`${name}转发了一条动态，已屏蔽`,
@@ -950,7 +950,7 @@ class ComRegister {
 								return;
 							}
 							if (e.message === "已屏蔽专栏动态") {
-								if (this.config.filter.notify) {
+								if (this.config.dynamicFilter.notify) {
 									await this.broadcastToTargets(
 										sub.target,
 										`${name}投稿了一条专栏，已屏蔽`,
@@ -1289,6 +1289,46 @@ class ComRegister {
 						"获取直播间信息失败，推送直播开播卡片失败！",
 					);
 				}
+				
+				// 直播标题过滤检查
+				if (this.config.liveFilter.enable && liveRoomInfo.title) {
+					const liveTitle = liveRoomInfo.title;
+					let shouldBlock = false;
+					
+					// 正则表达式过滤
+					if (this.config.liveFilter.regex) {
+						const reg = new RegExp(this.config.liveFilter.regex);
+						if (reg.test(liveTitle)) {
+							shouldBlock = true;
+						}
+					}
+					
+					// 关键词过滤
+					if (
+						this.config.liveFilter.keywords.length !== 0 &&
+						this.config.liveFilter.keywords.some((keyword) =>
+							liveTitle.includes(keyword),
+						)
+					) {
+						shouldBlock = true;
+					}
+					
+					// 如果需要屏蔽
+					if (shouldBlock) {
+						// 设置开播状态为false
+						liveStatus = false;
+						// 如果需要发送屏蔽通知
+						if (this.config.liveFilter.notify) {
+							await this.broadcastToTargets(
+								target,
+								`${masterInfo.username}开始了直播，但标题包含屏蔽关键字，已屏蔽推送`,
+								PushType.Live,
+							);
+						}
+						return;
+					}
+				}
+				
 				// 设置开播时间
 				liveTime = liveRoomInfo.live_time;
 				// 获取当前粉丝数
@@ -1783,7 +1823,13 @@ namespace ComRegister {
 		customLive: string;
 		customLiveEnd: string;
 		dynamicUrl: boolean;
-		filter: {
+		dynamicFilter: {
+			enable: boolean;
+			notify: boolean;
+			regex: string;
+			keywords: Array<string>;
+		};
+		liveFilter: {
 			enable: boolean;
 			notify: boolean;
 			regex: string;
@@ -1849,12 +1895,18 @@ namespace ComRegister {
 		customLive: Schema.string(),
 		customLiveEnd: Schema.string().required(),
 		dynamicUrl: Schema.boolean().required(),
-		filter: Schema.object({
-			enable: Schema.boolean(),
-			notify: Schema.boolean(),
-			regex: Schema.string(),
-			keywords: Schema.array(String),
-		}),
+		dynamicFilter: Schema.object({
+			enable: Schema.boolean().description("是否启用动态标题过滤"),
+			notify: Schema.boolean().description("屏蔽时是否发送通知"),
+			regex: Schema.string().description("正则表达式过滤规则"),
+			keywords: Schema.array(String).description("关键词过滤列表"),
+		}).description("动态标题过滤设置，当动态标题包含指定关键词时不推送动态信息"),
+		liveFilter: Schema.object({
+			enable: Schema.boolean().description("是否启用直播标题过滤"),
+			notify: Schema.boolean().description("屏蔽时是否发送通知"),
+			regex: Schema.string().description("正则表达式过滤规则"),
+			keywords: Schema.array(String).description("关键词过滤列表"),
+		}).description("直播标题过滤设置，当直播标题包含指定关键词时不推送直播通知"),
 		dynamicDebugMode: Schema.boolean().required(),
 	});
 }
