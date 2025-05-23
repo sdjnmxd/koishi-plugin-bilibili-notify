@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { withRetry } from "./utils";
 import type { Dynamic } from "./type";
+import { Logger } from "koishi";
 
 declare module "koishi" {
 	interface Context {
@@ -33,10 +34,12 @@ const ADDITIONAL_TYPE_RESERVE = "ADDITIONAL_TYPE_RESERVE";
 class GenerateImg extends Service {
 	static inject = ["puppeteer", "ba"];
 	giConfig: GenerateImg.Config;
+	declare logger: Logger;
 
 	constructor(ctx: Context, config: GenerateImg.Config) {
 		super(ctx, "gi");
 		this.giConfig = config;
+		this.logger = this.ctx.logger("gi");
 	}
 
 	async imgHandler(html: string) {
@@ -531,8 +534,17 @@ class GenerateImg extends Service {
 							pubTime = `${pubTime} · 投稿了视频`;
 						}
 					}
+                    this.logger.info("archive:", archive);
+                    this.logger.info("module_dynamic:", dynamic.modules.module_dynamic);
+                    this.logger.info("desc:", dynamic.modules.module_dynamic.desc);
+                    this.logger.info("desc text:", dynamic.modules.module_dynamic.desc?.text);
 
 					main += /* html */ `
+                    ${dynamic.modules.module_dynamic.desc && dynamic.modules.module_dynamic.desc.text ?
+                        `<div class="card-details">
+                            ${dynamic.modules.module_dynamic.desc.text.replace(/\n/g, '<br>')}
+                        </div>`
+                        : ""}
                     <div class="card-video">
                         <div class="video-cover">
                             <img src="${archive.cover}"
@@ -549,11 +561,6 @@ class GenerateImg extends Service {
                                     ${archive.desc ?
                                         `<div class="video-content-block">
                                             <div class="content-text">${archive.desc}</div>
-                                        </div>`
-                                        : ""}
-                                    ${dynamic.modules.module_dynamic?.desc?.text ?
-                                        `<div class="video-content-block${!archive.desc ? ' no-margin' : ''}">
-                                            <div class="content-text">${dynamic.modules.module_dynamic.desc.text.replace(/\n/g, '<br>')}</div>
                                         </div>`
                                         : ""}
                                 </div>
