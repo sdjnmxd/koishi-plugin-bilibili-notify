@@ -527,6 +527,10 @@ class ComRegister {
 
 	// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 	async broadcastToTargets(targets: Target, content: any, type: PushType) {
+		// 添加调试日志
+		this.logger.info(`开始推送消息，推送类型：${type}，目标数量：${targets.length}`);
+		this.logger.info(`推送内容：${typeof content === 'string' ? content : '非文本内容'}`);
+		
 		// 不止一个目标平台或一个目标频道
 		if (targets.length !== 1 || targets[0].channelArr.length !== 1) {
 			// 直接使用broadcast
@@ -696,6 +700,26 @@ class ComRegister {
 					if (timeline < postTime) {
 						// 获取订阅对象
 						const sub = this.subManager.find(sub => sub.uid === uid);
+						
+						// 先检查动态是否需要屏蔽
+						const filterResult = this.checkDynamicFilter(item);
+						if (filterResult) {
+							// 记录屏蔽日志
+							if (filterResult === "出现关键词，屏蔽该动态") {
+								this.logger.info(`${name}发布了一条含有屏蔽关键字的动态，已屏蔽推送`);
+							} else if (filterResult === "已屏蔽转发动态") {
+								this.logger.info(`${name}转发了一条动态，已屏蔽推送`);
+							} else if (filterResult === "已屏蔽专栏动态") {
+								this.logger.info(`${name}投稿了一条专栏，已屏蔽推送`);
+							}
+							// 如果当前订阅对象已存在更早推送，则无需再更新时间线
+							if (!currentPushDyn[uid]) {
+								// 将当前动态存入currentPushDyn
+								currentPushDyn[uid] = item;
+							}
+							continue;
+						}
+						
 						// 推送该条动态
 						const buffer = await withRetry(async () => {
 							// 渲染图片
@@ -703,37 +727,6 @@ class ComRegister {
 						}, 1).catch(async (e) => {
 							// 直播开播动态，不做处理
 							if (e.message === "直播开播动态，不做处理") return;
-							if (e.message === "出现关键词，屏蔽该动态") {
-								// 如果需要发送才发送
-								if (this.config.dynamicFilter.notify) {
-									await this.broadcastToTargets(
-										sub.target,
-										`${name}发布了一条含有屏蔽关键字的动态`,
-										PushType.Dynamic,
-									);
-								}
-								return;
-							}
-							if (e.message === "已屏蔽转发动态") {
-								if (this.config.dynamicFilter.notify) {
-									await this.broadcastToTargets(
-										sub.target,
-										`${name}转发了一条动态，已屏蔽`,
-										PushType.Dynamic,
-									);
-								}
-								return;
-							}
-							if (e.message === "已屏蔽专栏动态") {
-								if (this.config.dynamicFilter.notify) {
-									await this.broadcastToTargets(
-										sub.target,
-										`${name}投稿了一条专栏，已屏蔽`,
-										PushType.Dynamic,
-									);
-								}
-								return;
-							}
 							// 未知错误
 							this.logger.error(
 								`dynamicDetect generateDynamicImg() 推送卡片发送失败，原因：${e.message}`,
@@ -929,34 +922,18 @@ class ComRegister {
 							// 直播开播动态，不做处理
 							if (e.message === "直播开播动态，不做处理") return;
 							if (e.message === "出现关键词，屏蔽该动态") {
-								// 如果需要发送才发送
-								if (this.config.dynamicFilter.notify) {
-									await this.broadcastToTargets(
-										sub.target,
-										`${name}发布了一条含有屏蔽关键字的动态`,
-										PushType.Dynamic,
-									);
-								}
+								// 记录屏蔽日志
+								this.logger.info(`${name}发布了一条含有屏蔽关键字的动态，已屏蔽推送`);
 								return;
 							}
 							if (e.message === "已屏蔽转发动态") {
-								if (this.config.dynamicFilter.notify) {
-									await this.broadcastToTargets(
-										sub.target,
-										`${name}转发了一条动态，已屏蔽`,
-										PushType.Dynamic,
-									);
-								}
+								// 记录屏蔽日志
+								this.logger.info(`${name}转发了一条动态，已屏蔽推送`);
 								return;
 							}
 							if (e.message === "已屏蔽专栏动态") {
-								if (this.config.dynamicFilter.notify) {
-									await this.broadcastToTargets(
-										sub.target,
-										`${name}投稿了一条专栏，已屏蔽`,
-										PushType.Dynamic,
-									);
-								}
+								// 记录屏蔽日志
+								this.logger.info(`${name}投稿了一条专栏，已屏蔽推送`);
 								return;
 							}
 							// 未知错误
@@ -1130,6 +1107,8 @@ class ComRegister {
 		const currentLiveDanmakuArr: Array<string> = [];
 		// 定义开播状态
 		let liveStatus = false;
+		// 定义直播是否被屏蔽的状态
+		let isLiveBlocked = false;
 		// 处理target
 		// 定义channelIdArr总长度
 		let channelArrLen = 0;
@@ -1280,6 +1259,8 @@ class ComRegister {
 				if (liveStatus) return;
 				// 设置开播状态为true
 				liveStatus = true;
+				// 重置屏蔽状态
+				isLiveBlocked = false;
 				// 判断是否信息是否获取成功
 				if (!(await useMasterAndLiveRoomInfo(LiveType.StartBroadcasting))) {
 					// 设置开播状态为false
@@ -1317,14 +1298,10 @@ class ComRegister {
 					if (shouldBlock) {
 						// 设置开播状态为false
 						liveStatus = false;
-						// 如果需要发送屏蔽通知
-						if (this.config.liveFilter.notify) {
-							await this.broadcastToTargets(
-								target,
-								`${masterInfo.username}开始了直播，但标题包含屏蔽关键字，已屏蔽推送`,
-								PushType.Live,
-							);
-						}
+						// 设置屏蔽状态为true
+						isLiveBlocked = true;
+						// 记录屏蔽日志
+						this.logger.info(`${masterInfo.username}开始了直播，但标题包含屏蔽关键字，已屏蔽推送。标题：${liveTitle}`);
 						return;
 					}
 				}
@@ -1366,6 +1343,13 @@ class ComRegister {
 			onLiveEnd: async () => {
 				// 将直播状态设置为false
 				liveStatus = false;
+				
+				// 如果直播被屏蔽，则不推送下播通知，但需要重置屏蔽状态
+				if (isLiveBlocked) {
+					isLiveBlocked = false;
+					return;
+				}
+				
 				// 判断是否信息是否获取成功
 				if (!(await useMasterAndLiveRoomInfo(LiveType.StopBroadcast))) {
 					// 未获取成功，直接返回
@@ -1405,10 +1389,12 @@ class ComRegister {
 					followerChange,
 					liveEndMsg,
 				);
-				// 关闭定时推送定时器
-				pushAtTimeTimer();
-				// 将推送定时器变量置空
-				pushAtTimeTimer = null;
+				// 关闭定时推送定时器（只有当定时器存在时才调用）
+				if (pushAtTimeTimer) {
+					pushAtTimeTimer();
+					// 将推送定时器变量置空
+					pushAtTimeTimer = null;
+				}
 			},
 		};
 		// 启动直播间弹幕监测
@@ -1422,16 +1408,49 @@ class ComRegister {
 		}
 		// 判断直播状态
 		if (liveRoomInfo.live_status === 1) {
+			// 检查直播是否应该被屏蔽
+			let shouldBlockLive = false;
+			if (this.config.liveFilter.enable && liveRoomInfo.title) {
+				const liveTitle = liveRoomInfo.title;
+				
+				// 正则表达式过滤
+				if (this.config.liveFilter.regex) {
+					const reg = new RegExp(this.config.liveFilter.regex);
+					if (reg.test(liveTitle)) {
+						shouldBlockLive = true;
+					}
+				}
+				
+				// 关键词过滤
+				if (
+					this.config.liveFilter.keywords.length !== 0 &&
+					this.config.liveFilter.keywords.some((keyword) =>
+						liveTitle.includes(keyword),
+					)
+				) {
+					shouldBlockLive = true;
+				}
+			}
+			
+			// 如果直播应该被屏蔽，则不启动定时器和推送
+			if (shouldBlockLive) {
+				// 设置屏蔽状态
+				isLiveBlocked = true;
+				// 记录屏蔽日志
+				this.logger.info(`${masterInfo.username}正在直播，但标题包含屏蔽关键字，已屏蔽推送。标题：${liveRoomInfo.title}`);
+				return;
+			}
+			
 			// 设置开播时间
 			liveTime = liveRoomInfo.live_time;
 			// 获取当前累计观看人数
-			const watched = watchedNum || "暂未获取到";
+			const watchedDisplay = watchedNum || "暂未获取到";
 			// 定义直播中通知消息
 			const liveMsg = this.config.customLive
 				? this.config.customLive
 						.replace("-name", masterInfo.username)
 						.replace("-time", await this.ctx.gi.getTimeDifference(liveTime))
-						.replace("-watched", watched)
+						.replace("-watched", watchedDisplay)
 						.replace("\\n", "\n")
 						.replace(
 							"-link",
@@ -1440,7 +1459,7 @@ class ComRegister {
 				: null;
 			// 发送直播通知卡片
 			if (this.config.restartPush) {
-				await sendLiveNotifyCard(LiveType.LiveBroadcast, watched, liveMsg);
+				await sendLiveNotifyCard(LiveType.LiveBroadcast, watchedDisplay, liveMsg);
 			}
 			// 正在直播，开启定时器，判断定时器是否已开启
 			if (!pushAtTimeTimer) {
@@ -1756,8 +1775,66 @@ class ComRegister {
 	}
 
 	checkIfDynamicDetectIsNeeded() {
-		// 检查是否有订阅对象需要动态监测
-		if (this.subManager.some((sub) => sub.dynamic)) this.enableDynamicDetect();
+		return this.subManager.some((sub) => sub.dynamic);
+	}
+
+	// 检查动态是否需要屏蔽
+	checkDynamicFilter(item: AllDynamicInfo["data"]["items"][number]): string | null {
+		// 如果动态屏蔽功能未启用，直接返回null
+		if (!this.config.dynamicFilter.enable) return null;
+
+		// 检查动态类型
+		if (item.type === "DYNAMIC_TYPE_FORWARD") {
+			return "已屏蔽转发动态";
+		}
+
+		if (item.type === "DYNAMIC_TYPE_ARTICLE") {
+			return "已屏蔽专栏动态";
+		}
+
+		// 提取动态文本内容
+		let textContent = "";
+		
+		// 获取动态描述
+		if (item.modules.module_dynamic?.desc?.text) {
+			textContent += item.modules.module_dynamic.desc.text;
+		}
+
+		// 获取富文本内容（opus类型动态）
+		if (item.modules.module_dynamic?.major?.opus?.summary?.rich_text_nodes) {
+			textContent += item.modules.module_dynamic.major.opus.summary.rich_text_nodes.reduce(
+				(accumulator, currentValue) => {
+					if (!currentValue.text) {
+						return accumulator;
+					}
+					return accumulator + currentValue.text;
+				},
+				"",
+			);
+		}
+
+		// 检查关键词
+		if (this.config.dynamicFilter.keywords.length > 0) {
+			for (const keyword of this.config.dynamicFilter.keywords) {
+				if (textContent.includes(keyword)) {
+					return "出现关键词，屏蔽该动态";
+				}
+			}
+		}
+
+		// 检查正则表达式
+		if (this.config.dynamicFilter.regex) {
+			try {
+				const reg = new RegExp(this.config.dynamicFilter.regex);
+				if (reg.test(textContent)) {
+					return "出现关键词，屏蔽该动态";
+				}
+			} catch (e) {
+				this.logger.error(`动态屏蔽正则表达式错误: ${e.message}`);
+			}
+		}
+
+		return null;
 	}
 
 	enableDynamicDetect() {
@@ -1825,13 +1902,11 @@ namespace ComRegister {
 		dynamicUrl: boolean;
 		dynamicFilter: {
 			enable: boolean;
-			notify: boolean;
 			regex: string;
 			keywords: Array<string>;
 		};
 		liveFilter: {
 			enable: boolean;
-			notify: boolean;
 			regex: string;
 			keywords: Array<string>;
 		};
@@ -1897,13 +1972,11 @@ namespace ComRegister {
 		dynamicUrl: Schema.boolean().required(),
 		dynamicFilter: Schema.object({
 			enable: Schema.boolean().description("是否启用动态屏蔽"),
-			notify: Schema.boolean().description("屏蔽时是否发送通知"),
 			regex: Schema.string().description("正则表达式屏蔽规则"),
 			keywords: Schema.array(String).description("关键词屏蔽列表"),
 		}).description("动态屏蔽设置，当动态标题包含指定关键词时不推送动态信息"),
 		liveFilter: Schema.object({
 			enable: Schema.boolean().description("是否启用直播屏蔽"),
-			notify: Schema.boolean().description("屏蔽时是否发送通知"),
 			regex: Schema.string().description("正则表达式屏蔽规则"),
 			keywords: Schema.array(String).description("关键词屏蔽列表"),
 		}).description("直播屏蔽设置，当直播标题包含指定关键词时不推送直播通知"),

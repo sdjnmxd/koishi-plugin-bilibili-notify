@@ -472,51 +472,17 @@ export const Config: Schema<Config> = Schema.object({
 		"推送卡片的字体样式，如果你想用你自己的字体可以在此填写，例如：Microsoft YaHei",
 	),
 
-	dynamicFilter: Schema.intersect([
-		Schema.object({
-			enable: Schema.boolean()
-				.default(false)
-				.description("是否开启动态屏蔽功能"),
-		}).description("动态屏蔽设置"),
-		Schema.union([
-			Schema.object({
-				enable: Schema.const(true).required().experimental(),
-				notify: Schema.boolean()
-					.default(false)
-					.description("动态被屏蔽是否发送提示"),
-				regex: Schema.string().description("正则表达式屏蔽"),
-				keywords: Schema.array(String).description(
-					"关键字屏蔽，一个关键字为一项",
-				),
-				forward: Schema.boolean()
-					.default(false)
-					.description("是否屏蔽转发动态"),
-				article: Schema.boolean().default(false).description("是否屏蔽专栏"),
-			}),
-			Schema.object({}),
-		]),
-	]),
+	dynamicFilter: Schema.object({
+		enable: Schema.boolean().description("是否启用动态屏蔽"),
+		regex: Schema.string().description("正则表达式屏蔽规则"),
+		keywords: Schema.array(String).description("关键词屏蔽列表"),
+	}).description("动态屏蔽设置"),
 
-	liveFilter: Schema.intersect([
-		Schema.object({
-			enable: Schema.boolean()
-				.default(false)
-				.description("是否开启直播屏蔽功能"),
-		}).description("直播屏蔽设置"),
-		Schema.union([
-			Schema.object({
-				enable: Schema.const(true).required(),
-				notify: Schema.boolean()
-					.default(false)
-					.description("直播被屏蔽是否发送提示"),
-				regex: Schema.string().description("正则表达式屏蔽直播标题"),
-				keywords: Schema.array(String).description(
-					"关键字屏蔽直播标题，一个关键字为一项",
-				),
-			}),
-			Schema.object({}),
-		]),
-	]),
+	liveFilter: Schema.object({
+		enable: Schema.boolean().description("是否启用直播屏蔽"),
+		regex: Schema.string().description("正则表达式屏蔽规则"),
+		keywords: Schema.array(String).description("关键词屏蔽列表"),
+	}).description("直播屏蔽设置"),
 
 	debug: Schema.object({}).description("调试设置"),
 

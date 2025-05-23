@@ -312,23 +312,6 @@ class GenerateImg extends Service {
 						},
 						"",
 					);
-					// 关键字和正则屏蔽
-					if (this.giConfig.dynamicFilter.enable) {
-						// 开启动态屏蔽功能
-						if (this.giConfig.dynamicFilter.regex) {
-							// 正则屏蔽
-							const reg = new RegExp(this.giConfig.dynamicFilter.regex);
-							if (reg.test(richText)) throw new Error("出现关键词，屏蔽该动态");
-						}
-						if (
-							this.giConfig.dynamicFilter.keywords.length !== 0 &&
-							this.giConfig.dynamicFilter.keywords.some((keyword) =>
-								richText.includes(keyword),
-							)
-						) {
-							throw new Error("出现关键词，屏蔽该动态");
-						}
-					}
 					// 查找\n
 					const text = richText.replace(/\n/g, "<br>");
 					// 拼接字符串
@@ -393,10 +376,6 @@ class GenerateImg extends Service {
 					basicDynamic();
 					// 转发动态
 					if (dynamic.type === DYNAMIC_TYPE_FORWARD) {
-						//转发动态屏蔽
-						if (this.giConfig.dynamicFilter.enable && this.giConfig.dynamicFilter.forward) {
-							throw new Error("已屏蔽转发动态");
-						}
 						// User info
 						const forward_module_author =
 							dynamic.orig.modules.module_author;
@@ -612,10 +591,6 @@ class GenerateImg extends Service {
 						link,
 					];
 				case DYNAMIC_TYPE_ARTICLE: {
-					//转发动态屏蔽
-					if (this.giConfig.dynamicFilter.enable && this.giConfig.dynamicFilter.article) {
-						throw new Error("已屏蔽专栏动态");
-					}
 					return [`${upName}投稿了新专栏，我暂时无法渲染，请自行查看`, link];
 				}
 				case DYNAMIC_TYPE_MUSIC:
@@ -1625,14 +1600,6 @@ class GenerateImg extends Service {
 
 namespace GenerateImg {
 	export interface Config {
-		dynamicFilter: {
-			enable: boolean;
-			notify: boolean;
-			regex: string;
-			keywords: Array<string>;
-			forward: boolean;
-			article: boolean;
-		};
 		removeBorder: boolean;
 		cardColorStart: string;
 		cardColorEnd: string;
@@ -1645,14 +1612,6 @@ namespace GenerateImg {
 	}
 
 	export const Config: Schema<Config> = Schema.object({
-		dynamicFilter: Schema.object({
-			enable: Schema.boolean(),
-			notify: Schema.boolean(),
-			regex: Schema.string(),
-			keywords: Schema.array(String),
-			forward: Schema.boolean(),
-			article: Schema.boolean(),
-		}),
 		removeBorder: Schema.boolean(),
 		cardColorStart: Schema.string(),
 		cardColorEnd: Schema.string(),
