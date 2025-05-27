@@ -183,8 +183,68 @@ class BiliAPI extends Service {
 		// 获取直播间信息流密钥
 		const { data } = await this.client.get(
 			`${GET_LIVE_ROOM_INFO_STREAM_KEY}?id=${roomId}`,
+			{
+				headers: {
+					"Referer": `https://live.bilibili.com/${roomId}`,
+					"Origin": "https://live.bilibili.com",
+					"Sec-Fetch-Site": "same-site",
+					"Sec-Fetch-Mode": "cors",
+					"Sec-Fetch-Dest": "empty",
+				},
+			}
 		);
 		// 返回data
+		return data;
+	}
+
+	@Retry({
+		attempts: 3,
+		onFailure(error, attempts) {
+			this.logger.error(
+				`getLiveRoomInfoStreamKeyFallback() 第${attempts}次失败: ${error.message}`,
+			);
+		},
+	})
+	async getLiveRoomInfoStreamKeyFallback(roomId: string) {
+		// 备用接口获取直播间弹幕信息
+		const { data } = await this.client.get(
+			`https://api.live.bilibili.com/room/v1/Danmu/getConf?room_id=${roomId}&platform=pc&player=web`,
+			{
+				headers: {
+					"Referer": `https://live.bilibili.com/${roomId}`,
+					"Origin": "https://live.bilibili.com",
+					"Sec-Fetch-Site": "same-site",
+					"Sec-Fetch-Mode": "cors",
+					"Sec-Fetch-Dest": "empty",
+				},
+			}
+		);
+
+		// 转换数据结构以匹配主接口格式
+		if (data && data.code === 0 && data.data) {
+			const fallbackData = {
+				code: data.code,
+				message: data.message || "0",
+				data: {
+					token: data.data.token,
+					host_list: data.data.host_list || [
+						{
+							host: "broadcastlv.chat.bilibili.com",
+							port: 2243,
+							wss_port: 443,
+							ws_port: 2244
+						}
+					],
+					group: "live",
+					business_id: 7,
+					refresh_row_factor: 0.125,
+					refresh_rate: 100,
+					max_delay: 5000
+				}
+			};
+			return fallbackData;
+		}
+
 		return data;
 	}
 
@@ -549,6 +609,17 @@ class BiliAPI extends Service {
 						"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
 							? this.apiConfig.userAgent
 							: this.getRandomUserAgent(),
+					"Accept": "application/json, text/plain, */*",
+					"Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+					"Accept-Encoding": "gzip, deflate, br",
+					"Cache-Control": "no-cache",
+					"Pragma": "no-cache",
+					"Sec-Ch-Ua": '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
+					"Sec-Ch-Ua-Mobile": "?0",
+					"Sec-Ch-Ua-Platform": '"Windows"',
+					"Sec-Fetch-Dest": "empty",
+					"Sec-Fetch-Mode": "cors",
+					"Sec-Fetch-Site": "same-site",
 					Origin: "https://www.bilibili.com",
 					Referer: "https://www.bilibili.com/",
 				},
@@ -680,14 +751,24 @@ class BiliAPI extends Service {
 			);
 		}
 		// 对于某些 IP 地址，需要在 Cookie 中提供任意非空的 buvid3 字段
+		// 生成一个更真实的buvid3值
+		const generateBuvid3 = () => {
+			const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+			let result = '';
+			for (let i = 0; i < 10; i++) {
+				result += chars.charAt(Math.floor(Math.random() * chars.length));
+			}
+			return result + 'infoc';
+		};
+
 		const buvid3Cookie = new Cookie({
 			key: "buvid3",
-			value: "some_non_empty_value", // 设置任意非空值
+			value: generateBuvid3(), // 生成更真实的buvid3值
 			expires, // 设置过期时间
-			domain, // 设置域名
-			path, // 设置路径
+			domain: ".bilibili.com", // 设置为bilibili的根域名
+			path: "/", // 设置路径为根路径
 			secure, // 设置是否为安全 cookie
-			httpOnly, // 设置是否为 HttpOnly cookie
+			httpOnly: false, // buvid3通常不是HttpOnly
 			sameSite, // 设置 SameSite 属性
 		});
 		this.jar.setCookieSync(
