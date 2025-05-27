@@ -1,11 +1,11 @@
+import type { Notifier } from "@koishijs/plugin-notifier";
+import axios from "axios";
+import { wrapper } from "axios-cookiejar-support";
+import { JSDOM } from "jsdom";
 import { type Context, Schema, Service } from "koishi";
 import md5 from "md5";
 import crypto from "node:crypto";
-import axios from "axios";
-import { CookieJar, Cookie } from "tough-cookie";
-import { wrapper } from "axios-cookiejar-support";
-import { JSDOM } from "jsdom";
-import type { Notifier } from "@koishijs/plugin-notifier";
+import { Cookie, CookieJar } from "tough-cookie";
 import { Retry } from "./utils";
 
 declare module "koishi" {
