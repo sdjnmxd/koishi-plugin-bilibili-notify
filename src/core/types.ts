@@ -1,4 +1,4 @@
-import { Context } from 'koishi'
+import { Context } from 'koishi';
 
 export interface Config {
   key: string

@@ -1,44 +1,44 @@
-import { Context, Service } from 'koishi'
-import { LiveType, LiveUsers } from '../../core/types'
-import { BLiveClient } from 'blive-message-listener'
+import { Context, Service } from 'koishi';
+import { LiveType, LiveUsers } from '../../core/types';
+import { BLiveClient } from 'blive-message-listener';
 
 export default class BLive extends Service {
-  static inject = ['ba']
+  static inject = ['ba'];
   
-  private clients: Map<string, BLiveClient> = new Map()
+  private clients: Map<string, BLiveClient> = new Map();
 
   constructor(ctx: Context) {
-    super(ctx, 'bl')
+    super(ctx, 'bl');
   }
 
   async startLiveListener(roomId: string, callback: (type: LiveType, data: any) => void) {
     if (this.clients.has(roomId)) {
-      return
+      return;
     }
 
-    const client = new BLiveClient(roomId)
-    this.clients.set(roomId, client)
+    const client = new BLiveClient(roomId);
+    this.clients.set(roomId, client);
 
     client.on('LIVE', (data) => {
-      callback('start', data)
-    })
+      callback('start', data);
+    });
 
     client.on('PREPARING', (data) => {
-      callback('end', data)
-    })
+      callback('end', data);
+    });
 
     client.on('GUARD_BUY', (data) => {
-      callback('guard', data)
-    })
+      callback('guard', data);
+    });
 
-    await client.start()
+    await client.start();
   }
 
   async stopLiveListener(roomId: string) {
-    const client = this.clients.get(roomId)
+    const client = this.clients.get(roomId);
     if (client) {
-      await client.stop()
-      this.clients.delete(roomId)
+      await client.stop();
+      this.clients.delete(roomId);
     }
   }
 
@@ -47,24 +47,24 @@ export default class BLive extends Service {
       const response = await fetch(`https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=${roomId}`, {
         headers: {
           'User-Agent': this.ctx.ba.getUserAgent(),
-          'Cookie': this.ctx.ba.getCookies().join('; ')
-        }
-      })
-      const data = await response.json()
+          'Cookie': this.ctx.ba.getCookies().join('; '),
+        },
+      });
+      const data = await response.json();
       if (data.code === 0) {
-        return data.data.anchor_info
+        return data.data.anchor_info;
       }
-      return []
+      return [];
     } catch (e) {
-      this.logger.error('获取直播间用户信息失败', e)
-      return []
+      this.logger.error('获取直播间用户信息失败', e);
+      return [];
     }
   }
 
   protected dispose() {
     for (const [roomId, client] of this.clients) {
-      client.stop()
+      client.stop();
     }
-    this.clients.clear()
+    this.clients.clear();
   }
 } 

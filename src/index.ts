@@ -1,523 +1,273 @@
-import { type Context, type ForkScope, Schema, Service } from "koishi";
-import {} from "@koishijs/plugin-notifier";
-// import plugins
-import ComRegister from "./comRegister";
-import * as Database from "./database";
-// import Service
-import GenerateImg from "./generateImg";
-import BiliAPI from "./biliAPI";
-import BLive from "./blive";
-import { Config } from './core/types'
-import { ServerManager } from './core/server'
+import { Context } from 'koishi';
+import { registerCommands } from './commands';
+import { UnifiedConfig, UnifiedConfigManager } from './config/unified';
+import { DynamicDetector } from './core/dynamic/DynamicDetector';
+import { LiveListener } from './core/live/LiveListener';
+import { NotificationManager } from './core/notification/manager';
+import { initializeDatabase } from './database/models';
+import { LoginService } from './services/auth/LoginService';
+import { BilibiliApiService } from './services/bilibili/BilibiliApiService';
+import { ConfigService } from './services/config/ConfigService';
+import { BilibiliFilterService } from './services/filter';
+import { AdvancedFilterService } from './services/filter/AdvancedFilterService';
+import { ImageGeneratorService } from './services/image/ImageGeneratorService';
+import { ImageService } from './services/image/ImageService';
+import { DanmuListenerService } from './services/live/DanmuListenerService';
+import { createLogger } from './utils/logger';
 
-export const inject = ["puppeteer", "database", "notifier"];
+export const name = 'bilibili-notify-modern';
+export const inject = ['database', 'http', 'puppeteer'];
 
-export const name = "bilibili-notify";
+// 导出配置类型和Schema
+export { UnifiedConfig as Config, UnifiedConfigSchema } from './config/unified';
 
-let globalConfig: Config;
+export function apply(ctx: Context, config: UnifiedConfig) {
+  const logger = createLogger(ctx, 'MAIN');
 
-declare module "koishi" {
-	interface Context {
-		sm: ServerManager;
-	}
+  // 创建统一配置管理器
+  const configManager = new UnifiedConfigManager(ctx, config);
+
+  // 初始化数据库
+  initializeDatabase(ctx);
+
+  // 创建所有服务实例
+  const loginService = new LoginService(ctx);
+  const imageGeneratorService = new ImageGeneratorService(ctx);
+  const advancedFilterService = new AdvancedFilterService(ctx);
+  const bilibiliApiService = new BilibiliApiService(ctx, config);
+  const filterService = new BilibiliFilterService(ctx);
+  const imageService = new ImageService(ctx);
+  const notificationManager = new NotificationManager(ctx);
+  const configService = new ConfigService(ctx);
+  const danmakuListenerService = new DanmuListenerService(ctx, {
+    maxConnections: config.danmakuConfig?.maxConnections || 3,
+    reconnectInterval: (config.danmakuConfig?.reconnectInterval || 60) * 1000, // 转换为毫秒
+    heartbeatInterval: (config.danmakuConfig?.heartbeatInterval || 30) * 1000, // 转换为毫秒
+    enableDanmaku: config.enableLive && config.danmakuConfig?.enable !== false,
+  });
+
+  // 将所有服务添加到上下文中
+  ctx.provide('loginService', loginService);
+  ctx.provide('imageGeneratorService', imageGeneratorService);
+  ctx.provide('advancedFilterService', advancedFilterService);
+  ctx.provide('bilibiliApiService', bilibiliApiService);
+  ctx.provide('filterService', filterService);
+  ctx.provide('imageService', imageService);
+  ctx.provide('notificationManager', notificationManager);
+  ctx.provide('configService', configService);
+  ctx.provide('configManager', configManager);
+  ctx.provide('danmakuListenerService', danmakuListenerService);
+
+  // 注册命令系统
+  registerCommands(ctx);
+
+  // 等待服务注册完成后再创建核心功能实例
+  ctx.on('ready', async () => {
+    try {
+      // 首先确保Cookie已经设置到API服务
+      const registeredLoginService = ctx.get('loginService');
+      const registeredApiService = ctx.get('bilibiliApiService');
+
+      if (registeredLoginService && registeredApiService) {
+        // 先获取存储的登录信息并设置到API服务
+        const loginInfo = await registeredLoginService.getStoredLoginInfo();
+        if (loginInfo?.bili_cookies) {
+          registeredApiService.setCookies(loginInfo.bili_cookies);
+          logger.success('从数据库中恢复登录态');
+        }
+
+        // 然后检查登录状态
+        const status = await registeredLoginService.getLoginStatus();
+
+        if (status.isLoggedIn) {
+          const userInfo = status.userInfo;
+          logger.info(`👤 已登录用户: ${userInfo?.name} (UID: ${userInfo?.uid})`);
+          if (userInfo?.level) {
+            logger.info(`📊 用户等级: Lv.${userInfo.level}`);
+          }
+        } else {
+          logger.warn('未登录，部分功能可能受限');
+        }
+      } else {
+        logger.error('登录服务或API服务未找到，无法检查登录状态');
+      }
+
+      // 创建核心功能实例，使用配置管理器
+      const dynamicDetector = new DynamicDetector(
+        ctx,
+        filterService,
+        notificationManager,
+        configManager,
+        imageService,
+      );
+      const liveListener = new LiveListener(
+        ctx,
+        filterService,
+        notificationManager,
+        configManager,
+        imageService,
+      );
+
+      ctx.set('dynamicDetector', dynamicDetector);
+      ctx.set('liveListener', liveListener);
+
+      // 初始化图片生成服务
+      if (config.enableImageGeneration && imageGeneratorService) {
+        const initResult = await imageGeneratorService.initialize();
+        if (!initResult) {
+          logger.warn('图片生成服务初始化失败');
+        }
+      }
+
+      // 显示订阅统计信息
+      const subscriptions = config.subscriptions || [];
+      const dynamicSubs = subscriptions.filter(sub => sub.dynamic);
+      const liveSubs = subscriptions.filter(sub => sub.live);
+
+      logger.info(
+        `📊 运行时订阅统计: 总计 ${subscriptions.length} 个，动态 ${dynamicSubs.length} 个，直播 ${liveSubs.length} 个`,
+      );
+
+      // 如果启用了主人功能，显示主人信息
+      if (config.master?.enable) {
+        logger.info(`👑 主人功能已启用: ${config.master.platform}:${config.master.account}`);
+        if (config.master.guildId) {
+          logger.info(`   服务器/群组: ${config.master.guildId}`);
+        }
+      }
+
+      // 显示推送设置信息
+      if (config.pushSettings) {
+        logger.info('⚙️ 推送设置:');
+        logger.info(`   检测间隔: ${config.pushSettings.pushTime} 小时`);
+        logger.info(`   推送图片: ${config.pushSettings.pushImgsInDynamic ? '是' : '否'}`);
+        logger.info(`   推送链接: ${config.pushSettings.dynamicUrl ? '是' : '否'}`);
+        logger.info(`   重启推送: ${config.pushSettings.restartPush ? '是' : '否'}`);
+      }
+
+      // 显示检测间隔设置
+      logger.info('⏱️ 检测间隔设置:');
+      logger.info(`   动态检测: ${config.dynamicInterval || 2} 分钟`);
+      logger.info(`   直播检测: ${config.liveInterval || 30} 秒`);
+
+      // 分阶段启动监听服务，避免API请求过于频繁
+      let startupDelay = 0;
+
+      // 启动动态监听
+      if (config.enableDynamic && dynamicSubs.length > 0) {
+        setTimeout(async () => {
+          try {
+            await dynamicDetector.startDetection();
+            logger.info('动态监听已启动');
+          } catch (error) {
+            logger.error('动态监听启动失败:', error);
+          }
+        }, startupDelay);
+        startupDelay += 2000; // 延迟2秒
+      }
+
+      // 启动直播监听
+      if (config.enableLive && liveSubs.length > 0) {
+        setTimeout(async () => {
+          try {
+            await liveListener.startListening();
+            logger.info('直播监听已启动');
+
+            // 显示弹幕监听状态
+            const liveStatus = liveListener.status;
+            if (liveStatus.danmaku?.isRunning) {
+              logger.info(
+                `🎯 弹幕监听: 已启用 (${liveStatus.danmakuRooms}/${liveStatus.roomCount} 个房间)`,
+              );
+            } else {
+              logger.info('📡 弹幕监听: 未启用，使用纯轮询模式');
+            }
+          } catch (error) {
+            logger.error('直播监听启动失败:', error);
+          }
+        }, startupDelay);
+        startupDelay += 2000; // 再延迟2秒
+      }
+
+      // 如果没有启用任何监听服务，显示提示
+      if (!config.enableDynamic && !config.enableLive) {
+        logger.warn('⚠️ 未启用任何监听服务，请检查配置');
+      } else if (dynamicSubs.length === 0 && liveSubs.length === 0) {
+        logger.warn('⚠️ 没有配置任何订阅，请添加订阅后重启');
+      }
+    } catch (error) {
+      logger.error('初始化失败:', error);
+    }
+  });
+
+  // 监听配置变更
+  configManager.onConfigChange(newConfig => {
+    try {
+      logger.info('🔄 检测到配置变更，正在更新服务...');
+
+      // 重新加载User-Agent配置
+      if (bilibiliApiService) {
+        bilibiliApiService.reloadUserAgents();
+        const uaInfo = bilibiliApiService.getCurrentUserAgentInfo();
+        logger.info(`User-Agent已重新加载: ${uaInfo.index}/${uaInfo.total}`);
+      }
+
+      // 更新弹幕监听服务配置
+      if (danmakuListenerService) {
+        danmakuListenerService.setConfig({
+          maxConnections: newConfig.danmakuConfig.maxConnections,
+          reconnectInterval: newConfig.danmakuConfig.reconnectInterval * 1000,
+          heartbeatInterval: newConfig.danmakuConfig.heartbeatInterval * 1000,
+        });
+        logger.info('弹幕监听服务配置已更新');
+      }
+
+      // 通知核心服务配置已变更（它们会自动从配置管理器获取最新配置）
+      const dynamicDetector = ctx.get('dynamicDetector');
+      const liveListener = ctx.get('liveListener');
+
+      if (dynamicDetector) {
+        logger.info('动态检测服务将使用新配置');
+      }
+
+      if (liveListener) {
+        logger.info('直播监听服务将使用新配置');
+      }
+
+      // 验证新配置
+      const validation = configManager.validateConfig();
+      if (!validation.valid) {
+        logger.warn('配置验证失败:', validation.errors.join(', '));
+      }
+
+      // 显示配置统计
+      const stats = configManager.getStats();
+      logger.info(
+        `配置统计: 订阅 ${stats.totalSubscriptions} 个，推送目标 ${stats.totalTargets} 个`,
+      );
+
+      logger.success('配置更新完成');
+    } catch (error) {
+      logger.error('配置更新失败:', error);
+    }
+  });
+
+  // 插件启动日志
+  logger.info('Bilibili 现代化通知插件已启动');
+
+  // 定期清理过期数据（如果需要的话，可以在其他地方实现）
+  // ctx.setInterval(async () => {
+  //   // 清理逻辑可以移到其他服务中
+  // }, 24 * 60 * 60 * 1000);
+
+  // 插件停止时清理资源
+  ctx.on('dispose', async () => {
+    const dynamicDetector = ctx.get('dynamicDetector');
+    const liveListener = ctx.get('liveListener');
+
+    if (dynamicDetector) await dynamicDetector.stopDetection();
+    if (liveListener) await liveListener.stopListening();
+
+    logger.info('Bilibili 现代化通知插件已停止');
+  });
 }
-
-class ServerManager extends Service {
-	// 服务
-	servers: ForkScope[] = [];
-
-	constructor(ctx: Context) {
-		super(ctx, "sm");
-
-		// 插件运行相关指令
-		const sysCom = ctx.command("sys", "bili-notify插件运行相关指令", {
-			permissions: ["authority:5"],
-		});
-
-		sysCom
-			.subcommand(".restart", "重启插件")
-			.usage("重启插件")
-			.example("sys restart")
-			.action(async () => {
-				this.logger.info("调用sys restart指令");
-				if (await this.restartPlugin()) {
-					return "插件重启成功";
-				}
-				return "插件重启失败";
-			});
-
-		sysCom
-			.subcommand(".stop", "停止插件")
-			.usage("停止插件")
-			.example("sys stop")
-			.action(async () => {
-				this.logger.info("调用sys stop指令");
-				if (await this.disposePlugin()) {
-					return "插件已停止";
-				}
-				return "停止插件失败";
-			});
-
-		sysCom
-			.subcommand(".start", "启动插件")
-			.usage("启动插件")
-			.example("sys start")
-			.action(async () => {
-				this.logger.info("调用sys start指令");
-				if (await this.registerPlugin()) {
-					return "插件启动成功";
-				}
-				return "插件启动失败";
-			});
-	}
-
-	protected start(): void | Promise<void> {
-		// 注册插件
-		if (!this.registerPlugin()) {
-			this.logger.error("插件启动失败");
-		}
-	}
-
-	registerPlugin = () => {
-		// 如果已经有服务则返回false
-		if (this.servers.length !== 0) return false;
-		// 注册插件
-		try {
-			// BA = BiliAPI
-			const ba = this.ctx.plugin(BiliAPI, {
-				userAgent: globalConfig.userAgent,
-				key: globalConfig.key,
-			});
-
-			// GI = GenerateImg
-			const gi = this.ctx.plugin(GenerateImg, {
-				filter: globalConfig.filter,
-				removeBorder: globalConfig.removeBorder,
-				cardColorStart: globalConfig.cardColorStart,
-				cardColorEnd: globalConfig.cardColorEnd,
-				cardBasePlateColor: globalConfig.cardBasePlateColor,
-				cardBasePlateBorder: globalConfig.cardBasePlateBorder,
-				hideDesc: globalConfig.hideDesc,
-				enableLargeFont: globalConfig.enableLargeFont,
-				font: globalConfig.font,
-				followerDisplay: globalConfig.followerDisplay,
-			});
-
-			// CR = ComRegister
-			const cr = this.ctx.plugin(ComRegister, {
-				sub: globalConfig.sub,
-				master: globalConfig.master,
-				restartPush: globalConfig.restartPush,
-				pushTime: globalConfig.pushTime,
-				pushImgsInDynamic: globalConfig.pushImgsInDynamic,
-				customLiveStart: globalConfig.customLiveStart,
-				customLive: globalConfig.customLive,
-				customLiveEnd: globalConfig.customLiveEnd,
-				dynamicUrl: globalConfig.dynamicUrl,
-				filter: globalConfig.filter,
-				dynamicDebugMode: globalConfig.dynamicDebugMode,
-			});
-
-			// BL = BLive
-			const bl = this.ctx.plugin(BLive);
-
-			// 添加服务
-			this.servers.push(ba);
-			this.servers.push(bl);
-			this.servers.push(gi);
-			this.servers.push(cr);
-		} catch (e) {
-			this.logger.error("插件注册失败", e);
-			return false;
-		}
-		// 成功返回true
-		return true;
-	};
-
-	disposePlugin = async () => {
-		// 如果没有服务则返回false
-		if (this.servers.length === 0) return false;
-		// 遍历服务
-		await new Promise((resolve) => {
-			for (const fork of this.servers) {
-				fork.dispose();
-			}
-			// 清空服务
-			this.servers = [];
-			resolve("ok");
-		});
-		// 成功返回true
-		return true;
-	};
-
-	restartPlugin = async (): Promise<boolean> => {
-		// 如果没有服务则返回false
-		if (this.servers.length === 0) return false;
-		// 停用插件
-		await this.disposePlugin();
-		// 隔一秒启动插件
-		return new Promise((resolve) => {
-			this.ctx.setTimeout(() => {
-				try {
-					this.registerPlugin();
-				} catch (e) {
-					this.logger.error("重启插件失败", e);
-					resolve(false);
-				}
-				resolve(true);
-			}, 1000);
-		});
-	};
-}
-
-export function apply(ctx: Context, config: Config) {
-	// 设置config
-	globalConfig = config;
-	// 设置提示
-	ctx.notifier.create({
-		type: "danger",
-		content:
-			"从3.1.0-alpha.0及以前版本升级到3.1.0-alpha.1及以后版本必定报错，请重新填写订阅配置中sub.target.channelArr的内容",
-	});
-	ctx.notifier.create({
-		type: "warning",
-		content:
-			"请使用Auth插件创建超级管理员账号，没有权限将无法使用该插件提供的指令",
-	});
-	ctx.logger.warn(
-		"从3.1.0-alpha.0及以前版本升级到3.1.0-alpha.1版本必定报错，请重新填写订阅配置中sub.target.channelArr的内容",
-	);
-	// load database
-	ctx.plugin(Database);
-	// Register ServerManager
-	ctx.plugin(ServerManager, config);
-	// 当用户输入"恶魔兔，启动！"时，执行 help 指令
-	ctx.middleware((session, next) => {
-		if (session.content === "恶魔兔，启动！") {
-			return session.send("启动不了一点");
-		}
-		return next();
-	});
-}
-
-export interface Config {
-	// biome-ignore lint/complexity/noBannedTypes: <explanation>
-	require: {};
-	key: string;
-	// biome-ignore lint/complexity/noBannedTypes: <explanation>
-	master: {};
-	// biome-ignore lint/complexity/noBannedTypes: <explanation>
-	basicSettings: {};
-	userAgent: string;
-	// biome-ignore lint/complexity/noBannedTypes: <explanation>
-	subTitle: {};
-	sub: Array<{
-		name: string;
-		uid: string;
-		dynamic: boolean;
-		live: boolean;
-		// biome-ignore lint/complexity/noBannedTypes: <explanation>
-		card: {};
-		target: Array<{
-			channelArr: Array<{
-				channelId: string;
-				dynamic: boolean;
-				live: boolean;
-				liveGuardBuy: boolean;
-				atAll: boolean;
-			}>;
-			platform: string;
-		}>;
-	}>;
-	// biome-ignore lint/complexity/noBannedTypes: <explanation>
-	dynamic: {};
-	dynamicUrl: boolean;
-	pushImgsInDynamic: boolean;
-	// biome-ignore lint/complexity/noBannedTypes: <explanation>
-	live: {};
-	restartPush: boolean;
-	pushTime: number;
-	customLiveStart: string;
-	customLive: string;
-	customLiveEnd: string;
-	followerDisplay: boolean;
-	hideDesc: boolean;
-	// biome-ignore lint/complexity/noBannedTypes: <explanation>
-	style: {};
-	removeBorder: boolean;
-	cardColorStart: string;
-	cardColorEnd: string;
-	cardBasePlateColor: string;
-	cardBasePlateBorder: string;
-	enableLargeFont: boolean;
-	font: string;
-	// biome-ignore lint/complexity/noBannedTypes: <explanation>
-	filter: {};
-	// biome-ignore lint/complexity/noBannedTypes: <explanation>
-	debug: {};
-	dynamicDebugMode: boolean;
-}
-
-export const Config: Schema<Config> = Schema.object({
-	require: Schema.object({}).description("必填设置"),
-
-	key: Schema.string()
-		.pattern(/^[0-9a-f]{32}$/)
-		.role("secret")
-		.required()
-		.description(
-			"请输入一个32位小写字母的十六进制密钥（例如：9b8db7ae562b9864efefe06289cc5530），使用此密钥将你的B站登录信息存储在数据库中，请一定保存好此密钥。如果你忘记了此密钥，必须重新登录。你可以自行生成，或到这个网站生成：https://www.sexauth.com/",
-		),
-
-	master: Schema.intersect([
-		Schema.object({
-			enable: Schema.boolean()
-				.default(false)
-				.description(
-					"是否开启主人账号功能，如果您的机器人没有私聊权限请不要开启此功能。开启后如果机器人运行错误会向您进行报告",
-				),
-		}).description("主人账号"),
-		Schema.union([
-			Schema.object({
-				enable: Schema.const(true).required(),
-				platform: Schema.union([
-					"qq",
-					"qqguild",
-					"onebot",
-					"discord",
-					"red",
-					"telegram",
-					"satori",
-					"chronocat",
-					"lark",
-				]).description(
-					"请选择您的私人机器人平台，目前支持QQ、QQ群、OneBot、Discord、RedBot、Telegram、Satori、ChronoCat、Lark。从2.0版本开始，只能在一个平台下使用本插件",
-				),
-				masterAccount: Schema.string()
-					.role("secret")
-					.required()
-					.description(
-						"主人账号，在Q群使用可直接使用QQ号，若在其他平台使用，请使用inspect插件获取自身ID",
-					),
-				masterAccountGuildId: Schema.string()
-					.role("secret")
-					.description(
-						"主人账号所在的群组ID，只有在QQ频道、Discord这样的环境才需要填写，请使用inspect插件获取群组ID",
-					),
-			}),
-			Schema.object({}),
-		]),
-	]),
-
-	basicSettings: Schema.object({}).description("基本设置"),
-
-	userAgent: Schema.string()
-		.required()
-		.description(
-			"设置请求头User-Agen，请求出现-352时可以尝试修改，UA获取方法可参考：https://blog.csdn.net/qq_44503987/article/details/104929111",
-		),
-
-	subTitle: Schema.object({}).description("订阅配置"),
-
-	sub: Schema.array(
-		Schema.object({
-			name: Schema.string().description(
-				"订阅用户昵称，只是给你自己看的(相当于备注)，可填可不填",
-			),
-			uid: Schema.string().required().description("订阅用户UID"),
-			dynamic: Schema.boolean().default(false).description("是否订阅用户动态"),
-			live: Schema.boolean().default(false).description("是否订阅用户直播"),
-			target: Schema.array(
-				Schema.object({
-					platform: Schema.string()
-						.required()
-						.description("推送平台，例如onebot、qq、discord"),
-					channelArr: Schema.array(
-						Schema.object({
-							channelId: Schema.string().required().description("频道/群组号"),
-							dynamic: Schema.boolean()
-								.default(false)
-								.description("该频道/群组是否推送动态信息"),
-							live: Schema.boolean()
-								.default(false)
-								.description("该频道/群组是否推送直播通知"),
-							liveGuardBuy: Schema.boolean()
-								.default(false)
-								.description("该频道/群组是否推送上舰消息"),
-							atAll: Schema.boolean()
-								.default(false)
-								.description("推送开播通知时是否艾特全体成员"),
-						}),
-					)
-						.role("table")
-						.required()
-						.description("需推送的频道/群组详细设置"),
-				}),
-			).description(
-				"订阅用户需要发送的平台和频道/群组信息(一个平台下可以推送多个频道/群组)",
-			),
-			card: Schema.intersect([
-				Schema.object({
-					enable: Schema.boolean()
-						.default(false)
-						.description("是否开启自定义卡片颜色"),
-				}),
-				Schema.union([
-					Schema.object({
-						enable: Schema.const(true).required(),
-						cardColorStart: Schema.string()
-							.pattern(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/)
-							.description(
-								"推送卡片的开始渐变背景色，请填入16进制颜色代码，参考网站：https://webkul.github.io/coolhue/",
-							),
-						cardColorEnd: Schema.string()
-							.pattern(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/)
-							.description(
-								"推送卡片的结束渐变背景色，请填入16进制颜色代码，参考网站：https://colorate.azurewebsites.net/",
-							),
-						cardBasePlateColor: Schema.string()
-							.pattern(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/)
-							.description("推送卡片底板颜色，请填入16进制颜色代码"),
-						cardBasePlateBorder: Schema.string()
-							.pattern(/\d*\.?\d+(?:px|em|rem|%|vh|vw|vmin|vmax)/)
-							.description(
-								"推送卡片底板边框宽度，请填入css单位，例如1px，12.5rem，100%",
-							),
-					}),
-					Schema.object({}),
-				]),
-			]),
-		}).collapse(),
-	)
-		.collapse()
-		.description(
-			"输入订阅信息，自定义订阅内容； uid: 订阅用户UID，dynamic: 是否需要订阅动态，live: 是否需要订阅直播",
-		),
-
-	dynamic: Schema.object({}).description("动态推送设置"),
-
-	dynamicUrl: Schema.boolean()
-		.default(false)
-		.description(
-			"发送动态时是否同时发送链接。注意：如果使用的是QQ官方机器人不能开启此项！",
-		),
-
-	pushImgsInDynamic: Schema.boolean()
-		.default(false)
-		.description(
-			"是否推送动态中的图片，默认不开启。开启后会单独推送动态中的图片",
-		),
-
-	live: Schema.object({}).description("直播推送设置"),
-
-	restartPush: Schema.boolean()
-		.default(true)
-		.description(
-			"插件重启后，如果订阅的主播正在直播，是否进行一次推送，默认开启",
-		),
-
-	pushTime: Schema.number()
-		.min(0)
-		.max(12)
-		.step(0.5)
-		.default(1)
-		.description("设定间隔多长时间推送一次直播状态，单位为小时，默认为一小时"),
-
-	customLiveStart: Schema.string()
-		.default("-name开播啦，当前粉丝数：-follower\\n-link")
-		.description(
-			"自定义开播提示语，-name代表UP昵称，-follower代表当前粉丝数，-link代表直播间链接（如果使用的是QQ官方机器人，请不要使用），\\n为换行。例如-name开播啦，会发送为xxxUP开播啦",
-		),
-
-	customLive: Schema.string()
-		.default("-name正在直播，目前已播-time，累计观看人数：-watched\\n-link")
-		.description(
-			"自定义直播中提示语，-name代表UP昵称，-time代表开播时长，-watched代表累计观看人数，-link代表直播间链接（如果使用的是QQ官方机器人，请不要使用），\\n为换行。例如-name正在直播，会发送为xxxUP正在直播xxx",
-		),
-
-	customLiveEnd: Schema.string()
-		.default("-name下播啦，本次直播了-time，粉丝数变化-follower_change")
-		.description(
-			"自定义下播提示语，-name代表UP昵称，-follower_change代表本场直播粉丝数变，-time代表开播时长，\\n为换行。例如-name下播啦，本次直播了-time，会发送为xxxUP下播啦，直播时长为xx小时xx分钟xx秒",
-		),
-
-	followerDisplay: Schema.boolean()
-		.default(true)
-		.description("粉丝数变化和累积观看本场直播的人数是否显示在推送卡片中"),
-
-	hideDesc: Schema.boolean()
-		.default(false)
-		.description("是否隐藏UP主直播间简介，开启后推送的直播卡片将不再展示简介"),
-
-	style: Schema.object({}).description("美化设置"),
-
-	removeBorder: Schema.boolean().default(false).description("移除推送卡片边框"),
-
-	cardColorStart: Schema.string()
-		.pattern(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/)
-		.default("#F38AB5")
-		.description(
-			"推送卡片的开始渐变背景色，请填入16进制颜色代码，参考网站：https://webkul.github.io/coolhue/",
-		),
-
-	cardColorEnd: Schema.string()
-		.pattern(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/)
-		.default("#F9CCDF")
-		.description(
-			"推送卡片的结束渐变背景色，请填入16进制颜色代码，参考网站：https://colorate.azurewebsites.net/",
-		),
-
-	cardBasePlateColor: Schema.string()
-		.pattern(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/)
-		.default("#FFF5EE")
-		.description("推送卡片底板颜色，请填入16进制颜色代码"),
-
-	cardBasePlateBorder: Schema.string()
-		.pattern(/\d*\.?\d+(?:px|em|rem|%|vh|vw|vmin|vmax)/)
-		.default("15px")
-		.description("推送卡片底板边框宽度，请填入css单位，例如1px，12.5rem，100%"),
-
-	enableLargeFont: Schema.boolean()
-		.default(false)
-		.description(
-			"是否开启动态推送卡片大字体模式，默认为小字体。小字体更漂亮，但阅读比较吃力，大字体更易阅读，但相对没这么好看",
-		),
-
-	font: Schema.string().description(
-		"推送卡片的字体样式，如果你想用你自己的字体可以在此填写，例如：Microsoft YaHei",
-	),
-
-	filter: Schema.intersect([
-		Schema.object({
-			enable: Schema.boolean()
-				.default(false)
-				.description("是否开启动态屏蔽功能"),
-		}).description("屏蔽设置"),
-		Schema.union([
-			Schema.object({
-				enable: Schema.const(true).required().experimental(),
-				notify: Schema.boolean()
-					.default(false)
-					.description("动态被屏蔽是否发送提示"),
-				regex: Schema.string().description("正则表达式屏蔽"),
-				keywords: Schema.array(String).description(
-					"关键字屏蔽，一个关键字为一项",
-				),
-				forward: Schema.boolean()
-					.default(false)
-					.description("是否屏蔽转发动态"),
-				article: Schema.boolean().default(false).description("是否屏蔽专栏"),
-			}),
-			Schema.object({}),
-		]),
-	]),
-
-	debug: Schema.object({}).description("调试设置"),
-
-	dynamicDebugMode: Schema.boolean()
-		.default(false)
-		.description(
-			"动态调试模式，开启后会在控制台输出动态推送的详细信息，用于调试",
-		)
-		.experimental(),
-});

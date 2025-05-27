@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/types/**/*",
+    "src/config/**/*",
+    "src/core/**/*",
+    "src/services/**/*",
+    "src/utils/**/*",
+    "src/commands/**/*",
+    "src/index.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "lib",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/*.old",
+    "src/index-simple.ts",
+    "src/index-new.ts",
+    "src/comRegister.tsx",
+    "src/blive.ts",
+    "src/biliAPI.ts",
+    "src/generateImg.ts"
+  ]
+}

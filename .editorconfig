@@ -1,9 +1,44 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# top-most EditorConfig file
 root = true
 
+# 所有文件的默认设置
 [*]
-insert_final_newline = true
-indent_style = space
-indent_size = 4
-end_of_line = lf
 charset = utf-8
+end_of_line = lf
+insert_final_newline = true
 trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# TypeScript/JavaScript 文件
+[*.{ts,tsx,js,jsx}]
+indent_style = space
+indent_size = 2
+max_line_length = 100
+
+# JSON 文件
+[*.json]
+indent_style = space
+indent_size = 2
+
+# YAML 文件
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Markdown 文件
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# 包管理器文件
+[{package.json,package-lock.json,yarn.lock,pnpm-lock.yaml}]
+indent_style = space
+indent_size = 2
+
+# 配置文件
+[*.{config.js,config.ts}]
+indent_style = space
+indent_size = 2

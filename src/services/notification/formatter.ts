@@ -1,5 +1,5 @@
-import { Context, Service } from 'koishi'
-import { LiveType, MasterInfo } from '../../core/types'
+import { Context, Service } from 'koishi';
+import { LiveType, MasterInfo } from '../../core/types';
 
 export interface Config {
   filter: {
@@ -19,39 +19,39 @@ export interface Config {
 }
 
 export default class NotificationFormatter extends Service {
-  static inject = ['ba']
+  static inject = ['ba'];
   
-  private config: Config
+  private config: Config;
 
   constructor(ctx: Context, config: Config) {
-    super(ctx, 'gi')
-    this.config = config
+    super(ctx, 'gi');
+    this.config = config;
   }
 
   async formatLiveNotification(
     type: LiveType,
     masterInfo: MasterInfo,
     liveInfo: any,
-    customMessage?: string
+    customMessage?: string,
   ): Promise<string> {
-    const { name, face, follower } = masterInfo
-    const { title, cover, room_id } = liveInfo
+    const { name, face, follower } = masterInfo;
+    const { title, cover, room_id } = liveInfo;
 
-    let message = ''
+    let message = '';
     switch (type) {
       case 'start':
-        message = this.config.customLiveStart || '开播啦！'
-        break
+        message = this.config.customLiveStart || '开播啦！';
+        break;
       case 'end':
-        message = this.config.customLiveEnd || '下播啦！'
-        break
+        message = this.config.customLiveEnd || '下播啦！';
+        break;
       case 'guard':
-        message = this.config.customLive || '上舰啦！'
-        break
+        message = this.config.customLive || '上舰啦！';
+        break;
     }
 
     if (customMessage) {
-      message = customMessage
+      message = customMessage;
     }
 
     return `
@@ -61,15 +61,15 @@ export default class NotificationFormatter extends Service {
       ${type === 'start' ? `标题：${title}` : ''}
       ${type === 'start' ? `房间号：${room_id}` : ''}
       ${type === 'start' ? `封面：${cover}` : ''}
-    `.trim()
+    `.trim();
   }
 
   async formatDynamicNotification(
     dynamicInfo: any,
-    masterInfo: MasterInfo
+    masterInfo: MasterInfo,
   ): Promise<string> {
-    const { name, face, follower } = masterInfo
-    const { content, images, timestamp } = dynamicInfo
+    const { name, face, follower } = masterInfo;
+    const { content, images, timestamp } = dynamicInfo;
 
     return `
       动态更新！
@@ -78,25 +78,25 @@ export default class NotificationFormatter extends Service {
       内容：${content}
       ${images ? `图片：${images.join('\n')}` : ''}
       时间：${new Date(timestamp * 1000).toLocaleString()}
-    `.trim()
+    `.trim();
   }
 
   shouldFilter(content: string): boolean {
     if (!this.config.filter.enable) {
-      return false
+      return false;
     }
 
     if (this.config.filter.regex) {
-      const regex = new RegExp(this.config.filter.regex)
+      const regex = new RegExp(this.config.filter.regex);
       if (regex.test(content)) {
-        return true
+        return true;
       }
     }
 
     if (this.config.filter.keywords.length > 0) {
-      return this.config.filter.keywords.some(keyword => content.includes(keyword))
+      return this.config.filter.keywords.some(keyword => content.includes(keyword));
     }
 
-    return false
+    return false;
   }
 } 

@@ -1,0 +1,49 @@
+# 依赖目录
+node_modules/
+dist/
+build/
+lib/
+coverage/
+
+# 日志文件
+*.log
+logs/
+
+# 环境配置文件
+.env
+.env.local
+.env.*.local
+
+# 编辑器配置
+.vscode/
+.idea/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 包管理器文件
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# 构建产物
+*.tsbuildinfo
+*.d.ts.map
+
+# 旧文件
+*.old
+*.bak
+
+# 特定文件类型
+*.min.js
+*.min.css
+*.bundle.js
+
+# 文档
+CHANGELOG.md
+LICENSE
+
+# 配置文件（如果不想格式化）
+# *.config.js
+# *.config.ts 

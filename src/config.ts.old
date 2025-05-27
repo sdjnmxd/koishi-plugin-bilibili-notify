@@ -1,0 +1,122 @@
+import { Schema } from 'koishi';
+
+// 重新导出统一配置以保持向后兼容性
+export { 
+  UnifiedConfig as Config,
+  SubscriptionTarget,
+  CardStyle,
+  SubscriptionItem,
+  MasterConfig,
+  PushSettings,
+  CustomMessages,
+  DanmakuConfig,
+  ImageConfig,
+  FilterConfig,
+  StyleConfig,
+  UnifiedConfigManager
+} from './config/unified';
+
+// 单独导出Schema，避免命名冲突
+export { UnifiedConfigSchema } from './config/unified';
+
+// 保留原有的接口定义以防有其他地方引用
+// 但标记为已废弃
+/** @deprecated 请使用 ./config/unified 中的类型定义 */
+export interface LegacySubscriptionTarget {
+  platform: string;
+  channelId: string;
+  dynamic: boolean;
+  live: boolean;
+  liveGuardBuy: boolean;
+  atAll: boolean;
+}
+
+/** @deprecated 请使用 ./config/unified 中的类型定义 */
+export interface LegacyCardStyle {
+  enable: boolean;
+  cardColorStart: string;
+  cardColorEnd: string;
+  cardBasePlateColor: string;
+  cardBasePlateBorder: string;
+}
+
+/** @deprecated 请使用 ./config/unified 中的类型定义 */
+export interface LegacySubscriptionItem {
+  uid: string;
+  name?: string;
+  dynamic: boolean;
+  live: boolean;
+  targets: LegacySubscriptionTarget[];
+  card?: LegacyCardStyle;
+}
+
+/** @deprecated 请使用 ./config/unified 中的类型定义 */
+export interface LegacyMasterConfig {
+  enable: boolean;
+  platform: string;
+  account: string;
+  guildId: string;
+}
+
+/** @deprecated 请使用 ./config/unified 中的统一配置系统 */
+export interface LegacyConfig {
+  customUserAgents: string;
+  subscriptions: LegacySubscriptionItem[];
+  master: LegacyMasterConfig;
+  pushSettings: {
+    restartPush: boolean;
+    pushTime: number;
+    pushImgsInDynamic: boolean;
+    dynamicUrl: boolean;
+  };
+  customMessages: {
+    liveStart: string;
+    live: string;
+    liveEnd: string;
+  };
+  dynamicInterval: number;
+  liveInterval: number;
+  enableDynamic: boolean;
+  enableLive: boolean;
+  enableImageGeneration: boolean;
+  enableAdvancedFilter: boolean;
+  danmakuConfig: {
+    enable: boolean;
+    maxConnections: number;
+    reconnectInterval: number;
+    heartbeatInterval: number;
+    enableGuardBuy: boolean;
+    enableViewerCount: boolean;
+  };
+  imageConfig: {
+    width: number;
+    height: number;
+    backgroundColor: string;
+    textColor: string;
+    accentColor: string;
+    showAvatar: boolean;
+    showImages: boolean;
+    maxImageCount: number;
+  };
+  filterConfig: {
+    enableKeywordFilter: boolean;
+    excludeKeywords: string[];
+    includeKeywords: string[];
+    enableRepostFilter: boolean;
+    allowReposts: boolean;
+  };
+  style: {
+    removeBorder: boolean;
+    cardColorStart: string;
+    cardColorEnd: string;
+    cardBasePlateColor: string;
+    cardBasePlateBorder: string;
+    enableLargeFont: boolean;
+    font: string;
+    hideDesc: boolean;
+    followerDisplay: boolean;
+  };
+  debug: boolean;
+}
+
+// 原来的Schema定义已移至 ./config/unified.ts 

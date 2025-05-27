@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# 运行 ESLint 检查
+echo "🔍 运行 ESLint 检查..."
+npx eslint . --ext .ts,.js --fix
+
+# 运行 Prettier 格式化
+echo "🎨 运行 Prettier 格式化..."
+npx prettier --write .
+
+# 运行 TypeScript 类型检查
+echo "🔧 运行 TypeScript 类型检查..."
+npx tsc --noEmit
+
+echo "✅ 代码检查完成！"
